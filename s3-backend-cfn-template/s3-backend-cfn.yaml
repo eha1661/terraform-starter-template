@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: > 
+  AWS-Tools template used to automate the creation of Terraform 
+  backend
+
+###########################################################
+Metadata:
+###########################################################
+  Authors:
+    Description:  eha
+  Purpose:
+    Description: >
+      This template is used used to automate the creation of Terraform 
+      backend
+      
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Account settings"
+        Parameters:
+        - pEnvironment
+      - Label:
+          default: "Tags"
+        Parameters:
+        - pTeamName
+      - Label:
+          default: "Terraform remote backed configuration"
+        Parameters:
+          - pEnableVersionning
+          - pProductName
+          - pSuffix
+    ParameterLabels:
+      pEnvironment:
+        default: "pEnvironment"
+      pTeamName:
+         default: "pTeamName"
+      pEnableVersionning:
+         default: "pEnableVersionning"
+      pProductName:
+         default: "pProductName"
+      pSuffix:
+         default: "pSuffix"
+
+###########################################################
+Parameters:
+###########################################################
+  pEnvironment:
+    Type: String
+    Description: Environment Name
+    AllowedValues:
+      - sandbox
+      - dev
+      - pre
+      - prod
+    Default: sandbox
+
+  pTeamName:
+    Type: String
+    Description: Name of the team
+    Default: DevOps
+  
+  pProductName:
+    Type: String
+    Description: > 
+      Nmae of the product. 
+      For instance, terraform-backend
+    AllowedPattern: ^[a-z0-9-]+
+  
+  pSuffix:
+    Type: String
+    Description: > 
+      string to be added at the end of resources.
+      It can be the initials of a user ...
+      The purpose of this paramters is to allow multiple deployment
+      of the same stack
+    Default: ""
+  
+  pEnableVersionning:
+    Type: String
+    Description: To do
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+###########################################################
+Conditions:
+###########################################################
+  cIsVersioningEnabled:
+    !Equals [!Ref pEnableVersionning, true]
+  cIsDeploymentWithSuffix:
+    !Not [!Equals [!Ref pSuffix, ""]]
+
+###########################################################
+Resources:
+###########################################################
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub 
+        - "${sBucketName}"
+        - sBucketName: !If
+            - cIsDeploymentWithSuffix
+            - !Sub "${pProductName}-${pEnvironment}-${AWS::AccountId}-${pSuffix}" 
+            - !Sub "${pProductName}-${pEnvironment}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: !If [cIsVersioningEnabled, "Enabled", "Suspended"]
+      Tags:
+      - Key: "Environment"
+        Value: !Ref pEnvironment
+      - Key: "Owner"
+        Value: !Ref pTeamName
+      - Key: "ProductName"
+        Value: !Ref pProductName
+
+###########################################################
+Outputs:
+###########################################################
+
+  oS3BucketName:
+    Description: Name of the S3 bucket created
+    Value: !Ref S3Bucket
+    Export:
+      Name: !Sub "${pProductName}-${pEnvironment}-S3BucketName"
+
+  oS3BucketArn:
+    Description: ARN of the S3 bucket created
+    Value: !GetAtt S3Bucket.Arn
+    Export:
+      Name: !Sub "${pProductName}-${pEnvironment}-S3BucketArn"
